@@ -1,0 +1,1 @@
+[{"current_version": 1.24, "location": "C:\\r\randomFile010208938829892", "Url": "https://packthecommand.000webhostapp.com/Software/Update/2lk67o30wu376sn27xajwj8289dsuih2z98dw8q9i2uh3e4ezu989dz8723197/version_data/mitive_dev.latest", "overwrite": {"force_install": true}}]
