@@ -1,0 +1,1 @@
+[{"current_version": 1.8, "location": "", "Url": "", "overwrite": {"force_install": true}}]
