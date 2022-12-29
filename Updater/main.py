@@ -1,4 +1,5 @@
 import enum
+import warnings
 from tkinter import font as tkfont
 import json
 import os
@@ -19,7 +20,7 @@ localSpeck=None
 mode = "dark"
 
 
-class collor(enum.Enum):
+class Collor(enum.Enum):
     if mode == "dark":
         bg = "#232327"
         bg_darker = "#232327"
@@ -39,19 +40,29 @@ class collor(enum.Enum):
 def check_for_Updates(curent_version: str, return_values,Url):
 
     try:
+        if Url=="":
+
+            warnings.warn(">>INFO>> .Spec-file Error: No Update Url defined in -.spec from key 'Url' ")
+            return_values[0] = (False, -404.0)
+            return
         log = urllib.request.urlopen(Url)
+
     except urle.URLError:
         return_values[0] = (False, -404.0)
         return
     data = log.read()
+
     data = data.decode('utf-8')
     data = data.replace("\n", "")
     print(data)
+    print("log",data)
     latest_log = json.loads(data)[0]
     update_version = float(latest_log["version"])
+    with open("update_mainfest.json", "w") as f:
+        f.write(data)
     if update_version > float(curent_version):
-        with open("update_mainfest.json", "w") as f:
-            f.write(data)
+
+
         return_values[0] = (True, update_version)
         return
     return_values[0] = (False, update_version)
@@ -65,6 +76,7 @@ def do_Update(args, Err=False):
     global installation_location, closeButton,localSpeck
     dic = {"finisched_download": False,
            "progress": 0,
+           "total_length":1,
            "finisched_Moving": False,
            "point": 0,
            "version": (args[0], args[1]),
@@ -75,25 +87,31 @@ def do_Update(args, Err=False):
     try:
         with open("update_mainfest.json", "r") as f:
             infos = json.load(f)[0]
+            print(infos)
             dowl_url = infos["downl"]
         """install_file = urllib.request.urlopen(dowl_url)
         len=install_file.length"""
         install_file = requests.get(dowl_url, stream=True)
-    except Exception:
+    except Exception as e:
+        print("err",repr(e))
         dic["Error"] = "Error: Domane or side is offline (unable to get version-file)"
         return
+    t = threading.Thread(target=updateTread, args=(dic,install_file,args))
+    t.start()
+    updateInfo_window(dic)
+def updateTread(dic,install_file,args):
 
     try:
         with open("installation_local_update.zip", "wb") as f:
-            lenF = len(install_file.content)
-            print(lenF)
-            dic["total"] = lenF
-            t = threading.Thread(target=updateInfo_window, args=(dic,))
-            t.start()
 
-            if Err:
-                dic["Error"] = "Newest version already installed"
-                return
+            le=install_file.headers["Content-Length"]
+            dic["total_length"] = int(le)
+            dic["total"] = int(le)
+            print("got len")
+
+
+
+
             for data in install_file.iter_content(chunk_size=1024):
 
                 if data:
@@ -146,8 +164,14 @@ def open_window(install_location_):
 
 
     tk = Tk()
+    st = ttk.Style(tk)
+    st.theme_use("clam")
+
+    st.configure("Horizontal.TProgressbar", background="#83C9F4", borderwidth=0,
+                 bordercolor="black", lightcolor=Collor.bg.value, darkcolor=Collor.bg.value,
+                 troughcolor=Collor.bg.value, )
     tk.title("Update")
-    tk.configure(background=collor.bg.value)
+    tk.configure(background=Collor.bg.value)
     tk.wm_geometry("260x280+%d+%d" % (-800, -800))
 
     tk.resizable(False, False)
@@ -165,7 +189,7 @@ def open_window_2(tk):
     tk.wm_geometry("+%d+%d" % (tk.winfo_screenwidth() // 2.4, tk.winfo_screenheight() // 2.8))
     titelF = tkfont.Font(family="Bahnschrift", size=18, weight="bold")
 
-    labout=Label(tk,text="about", font=subInfo, bg=collor.bg.value, fg=collor.fg.value, )
+    labout=Label(tk, text="about", font=subInfo, bg=Collor.bg.value, fg=Collor.fg.value, )
     labout.pack(side="top",anchor="ne")
     def temp_show_creadits(u):#
         tkinter.messagebox.showinfo("Credits (Temp)","Developed by: \n"+
@@ -177,13 +201,13 @@ def open_window_2(tk):
     labout.bind("<Button-1>",temp_show_creadits)
 
 
-    tL = Label(font=titelF, bg=collor.bg.value, fg=collor.fg.value, text="Checking for updates")
+    tL = Label(font=titelF, bg=Collor.bg.value, fg=Collor.fg.value, text="Checking for updates")
     tL.pack(side="top")
-    buttonFrame = tkinter.Frame(tk, bg=collor.bg.value)
+    buttonFrame = tkinter.Frame(tk, bg=Collor.bg.value)
     buttonFrame.pack(side="bottom", anchor="n", fill="x")
     B = Button(buttonFrame, text="cancel", font=tkfont.Font(family="Bahnschrift", size=12, weight="bold"),
                relief="solid",
-               command=tk.destroy, bg=collor.bg_cancel.value, fg=collor.fg.value, )
+               command=tk.destroy, bg=Collor.bg_cancel.value, fg=Collor.fg.value, )
     B.pack(side="right", anchor="e", padx=(0, 3), pady=(0, 3))
     tk.after(50, lambda: open_window_3(tk, tL, B))
     closeButton = B
@@ -201,6 +225,7 @@ def open_window_3(tk, tL, B):
     try:
         with open("instance.spec", "r") as f:
             localSpeck=softwareSpec = json.load(f)[0]
+            print("spec",softwareSpec)
             Url=softwareSpec["Url"]
             installation_location=softwareSpec["location"]
             cv = softwareSpec["current_version"]
@@ -208,7 +233,7 @@ def open_window_3(tk, tL, B):
     except Exception as e:
         print(e)
         tL.configure(text="Unable to Update", )
-        L = Label(font=subInfo, bg=collor.bg.value, fg=collor.fg.value, text="Aplication-spec file missing or curupted")
+        L = Label(font=subInfo, bg=Collor.bg.value, fg=Collor.fg.value, text="Aplication-spec file missing or curupted")
         return
     t = threading.Thread(target=send_request_for_update_info, args=(liste_ret, cv,Url))
     t.start()
@@ -276,7 +301,7 @@ def after_Update_url_request(tr, newV, comp):
     if tr:
         tk.configure(cursor="")
         tL.configure(text="Update Avalable")
-        Linfo = Label(tk, text="Do you want to Update?", bg=collor.bg.value, fg=collor.fg.value)
+        Linfo = Label(tk, text="Do you want to Update?", bg=Collor.bg.value, fg=Collor.fg.value)
         Linfo.pack(side="top")
 
         def on_update_button_click(B, tL, Linfo, data):
@@ -293,13 +318,13 @@ def after_Update_url_request(tr, newV, comp):
 
         B1 = Button(tk, font=subInfo, text="Update",
                     command=lambda: on_update_button_click(closeButton, tL, Linfo, data),
-                    bg=collor.bg_darker.value, fg=collor.fg.value, relief="solid")
+                    bg=Collor.bg_darker.value, fg=Collor.fg.value, relief="solid")
         BU = B1
         B1.pack(side="top", anchor="center")
     else:
         if (newV == -404.0):
             tL.configure(text="Error")
-            Linfo = Label(tk, text="Unable to reach Update-URL", bg=collor.bg.value, fg=collor.fg.value, )
+            Linfo = Label(tk, text="Unable to reach Update-URL", bg=Collor.bg.value, fg=Collor.fg.value, )
             Linfo.pack(side="top")
             tk.configure(cursor="")
             return
@@ -318,12 +343,12 @@ def after_Update_url_request(tr, newV, comp):
 
         tL.configure(text="No Updates Found")
 
-        Linfo = Label(tk, text="You are on the newest version", bg=collor.bg.value, fg=collor.fg.value, )
+        Linfo = Label(tk, text="You are on the newest version", bg=Collor.bg.value, fg=Collor.fg.value, )
         Linfo.pack(side="top")
         tk.configure(cursor="")
         B1 = Button(buttonFrame, font=subInfo, text="Reinstall",
                     command=lambda: on_install_aniway_button_click(closeButton, tL, Linfo, data), borderwidth=0,
-                    bg=collor.bg_reinst.value, fg=collor.fg_reinst.value, relief="solid")
+                    bg=Collor.bg_reinst.value, fg=Collor.fg_reinst.value, relief="solid")
         B1.pack(side="left", anchor="w", padx=(3, 0), pady=(0, 1))
         BU = B1
 
@@ -336,9 +361,9 @@ def updateInfo_window(data):
     v1, v2 = data["version"]
     tk.title(f"Ver {v1} -> {v2}")
 
-    L = Label(tk, text="Update", font=titelF, bg=collor.bg.value, fg=collor.fg.value)
+    L = Label(tk, text="Update", font=titelF, bg=Collor.bg.value, fg=Collor.fg.value)
     LI = Label(tk, text="... update in progress",
-               font=subInfo, bg=collor.bg.value, fg=collor.fg.value)
+               font=subInfo, bg=Collor.bg.value, fg=Collor.fg.value)
 
     L.pack(side="top")
     LI.pack(side="top")
@@ -346,10 +371,10 @@ def updateInfo_window(data):
         tk,
         orient='horizontal',
         mode='determinate',
-        length=data["total"]
+        length=190
     )
 
-    pb.pack(fill="x", side="bottom")
+    pb.pack( side="bottom")
     c = (closeButton, LI, L)
 
     tk.after(100, lambda: update_Progress(tk, pb, data, c, True))
@@ -376,13 +401,12 @@ def update_Progress(tk, pb: tkinter.ttk.Progressbar, data, c, first=False):
                 tk.protocol("WM_DELETE_WINDOW", tk.destroy)
     else:
         err = data["Error"]
-        p = pb['value'] = data["progress"]
+        calc_now = ((data["progress"] / data["total_length"]) * 100) // 1
+        p = pb['value'] = calc_now
 
-        prozent = ((data["total"] / p) * 100) // 1
-        print(data["total"] / 10, p, ":", prozent)
-        if (prozent > 100.0):
-            prozent = 100.0
-        c[1].configure(text=f"{prozent}%...downloading")
+
+
+        c[1].configure(text=f"{calc_now}%...downloading")
 
 
 open_window(r"C:\Users\ctind\PycharmProjects\Experimental\sned_recicve\install\\")
